@@ -22,7 +22,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r }
 
-data_in=read.csv("C:/Users/Philippe/Documents/Philippe/R/Cabinet Office test/data_scientist_technical_exercise_data/data_scientist_technical_exercise_data/TransparencyIndicatorsGPPerformance.csv",header=TRUE,
+data_in=read.csv("C:/Users/Philippe/Documents/Philippe/R/TransparencyIndicatorsGPPerformance.csv",header=TRUE,
                  sep="¬")
 ```
 The 'str' command gives information on the structure of the data.
