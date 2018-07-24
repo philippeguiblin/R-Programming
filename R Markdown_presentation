@@ -1,0 +1,228 @@
+---
+title: "Exploratory Data Analysis / Transparency Indicators / GP Performance"
+author: "Philippe Guiblin"
+date: "June 16, 2018"
+---
+
+
+# A simple R markdown tutorial
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+
+## 1. Loading the data
+
+- Data are in csv format and imported into R using the 'read.csv' command
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r }
+
+data_in=read.csv("C:/Users/Philippe/Documents/Philippe/R/Cabinet Office test/data_scientist_technical_exercise_data/data_scientist_technical_exercise_data/TransparencyIndicatorsGPPerformance.csv",header=TRUE,
+                 sep="¬")
+```
+The 'str' command gives information on the structure of the data.
+```{r }
+str(data_in)
+```
+
+- Initial observations:
+- There are 428,920 observations (rows) and 6 variables 
+- 'Organisation ID' is in numeric format. The other fields are in character format
+- The 'Value' field contains a mix of numeric and charachter
+- The 'Text' fielt contains useful numeric information
+
+Let's print first 10 rows 
+```{r }
+head(data_in, n=10)
+```
+
+- There are blanks in the 'Value' field corresponding to the metric referred as 'Care Quality Commission Inspection Ratings'. The valuable information is in the text field (e.g. Good)
+
+## 2. Checking and remove duplicates
+- Using the 'duplicated' function
+```{r }
+data_in_nodup<-data_in[!duplicated(data_in),]
+```
+- There are now 247,307 observations 
+
+
+## 3. Looking at one continuous metric: Antibiotic Prescribing
+
+- 'Value' need to be recoded as a numeric
+
+```{r }
+data_in_nodup_AntiBiot <- data_in_nodup[which(data_in_nodup$MetricName=='Antibiotic Prescribing'), ]
+
+```
+- Use of ggplot2 package to look at  distribution of the 'Value' variable
+
+```{r warning=FALSE}
+library(ggplot2)
+par(mfcol=c(1,2))
+hist(as.numeric(data_in_nodup_AntiBiot$Value), breaks = 30, col="red",main="",xlab="")
+boxplot(as.numeric(data_in_nodup_AntiBiot$Value))
+```
+
+- A few extreme values
+
+### Extracting 5 lowest and 5 highest perormers for this metric
+- Lowest performers
+```{r }
+data_in_nodup_AntiBiot[order(as.numeric(data_in_nodup_AntiBiot$Value))[1:5],] 
+```
+
+- And the highest
+```{r}
+data_in_nodup_AntiBiot[order(-as.numeric(data_in_nodup_AntiBiot$Value))[1:5],]
+
+```
+
+## 4. Looking at one categorical metric: Cervical Cancer Screening
+
+
+- Challenge: The numeric value is in the text field
+```{r }
+data_in_nodup_CervicCancer <- data_in_nodup[which(data_in_nodup$MetricName=='Cervical Cancer Screening'), ]
+```
+- The numerical information need to be extracted from thee text field
+```{r }
+Text2Value<-substr(data_in_nodup_CervicCancer$Text, 1, 5)
+Text2Value<-as.numeric(sub("%","",Text2Value))/100
+```
+### Extracting 5 lowest and 5 highest perormers for this metric
+- Lowest performers
+```{r }
+data_in_nodup_CervicCancer[order(Text2Value)[1:5],] 
+```
+
+- and Highest performers
+```{r }
+data_in_nodup_CervicCancer[order(-Text2Value)[1:5],]
+``` 
+
+
+# 5. Multivariate analysis: Principal Component Analysis
+
+
+- Here we want to look at all the metrics together and identify groups of GP practices with similar profiles with regard to performance
+- Numeric information needs to be extracted from the 'Text' field
+- The function 'substr' is used to extract the percentage information stored between the first and fifth position of the text field
+```{r }
+Text2<-substr(data_in_nodup$Text, 1, 5)
+```
+- A numeric variable variable 'Score' is created 
+```{r warning=FALSE}
+Score<-as.numeric(sub("%","",Text2))/100
+is.numeric(Score)
+```
+
+- Which is attached to a new data set
+```{r }
+new1<-cbind(data_in_nodup,Score)
+```
+- Missing values are removed and only variables of interest are kept for later work
+ 
+```{r }
+new1<-na.omit(new1)
+keyvars<-c("OrganisationName", "MetricName","Score")
+new1<-new1[keyvars]
+```
+- The following reshape the dataset from a long to a wide format more suitable for PCA
+
+```{r warning=FALSE}
+new1_wide<-reshape(new1, idvar = "OrganisationName", timevar = "MetricName", direction = "wide")
+new1_wide<-na.omit(new1_wide)
+```
+
+
+- The aim is to identify GP practices with similar profiles (e.g. good or could improve peformers )
+- The function prcomp is used to calculate the principal component
+```{r }
+new1_wide.pc <- prcomp(new1_wide[-1])
+```
+
+- Some summary statistics on the total variance explined by the PCs 
+```{r}
+summary(new1_wide.pc) 
+```
+
+- The first two components only explain 50% of the total variance
+
+- This first chart below shows the variance explained per component
+- The second chart shows the scatterplot of the GPs against the fisrt two components 
+```{r }
+plot(new1_wide.pc, type = "l", main="explained variance per component") 
+```
+
+
+```{r }
+plot(new1_wide.pc$x) 
+```
+
+
+- The group of GP practices at the bottom left of the chart are performing below average overall 
+- They could be targeted for future actions
+
+# 6. PCA using the FactMinerR package
+
+```{r warning=FALSE}
+library(FactoMineR) 
+```
+- The function 'PCA' is run
+
+```{r }
+res.pca <- PCA(new1_wide[-1], graph = FALSE)
+```
+
+- The results are: 
+```{r}
+print(res.pca)
+```
+
+- Eigenvalues are accessible using the library 'factoextra'
+
+```{r warning=FALSE}
+library(factoextra)
+eig.val <- get_eigenvalue(res.pca)
+eig.val
+```
+- Eigen value chart
+```{r }
+fviz_eig(res.pca, addlabels = TRUE, ylim = c(0, 50))
+```
+
+### Graph of the Variables
+
+```{r }
+var <- get_pca_var(res.pca)
+var
+```
+
+### Displaying metrics correlation
+
+- The graph below shows correlations between variables
+- Variables (Metrics) positively correlated are grouped
+- Variables (Metrics) negatively correlated are positioned on opposite quadrants of the graph. The graph suggest that this does not happen in this case (fortunately!)
+
+```{r }
+#head(var$coord, 4)
+#fviz_pca_var(res.pca, col.var = "black",labelsize=2)
+```
+
+- The folowing chart shows the same chart as above with an indicationof th equality of the representation (square cosine criteria)
+
+
+```{r }
+#head(var$cos2, 4)
+fviz_pca_var(res.pca, col.var = "cos2",labelsize=2,
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE # Avoid labels overlapping
+             )
+```
+
+
